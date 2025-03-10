@@ -24,6 +24,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 // Register ChartJS components
 Chart.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Title, Tooltip, Legend)
 
+// ตั้งค่า API URL (ใช้ Environment Variable ใน production)
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://quickdrop-api.your-username.workers.dev"
+
 export default function Dashboard() {
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
@@ -38,14 +41,20 @@ export default function Dashboard() {
 
   const fetchLogs = async () => {
     try {
-      // In production, you'd use a relative URL or environment variable
-      const response = await fetch("/api/logs")
+      const response = await fetch(`${API_URL}/api/logs`)
       if (!response.ok) {
         throw new Error("Failed to fetch logs")
       }
       const data = await response.json()
-      setLogs(data)
-      calculateStats(data)
+
+      // แปลงข้อมูล successful จาก 0/1 เป็น boolean (สำหรับ D1/SQLite)
+      const formattedData = data.map((log) => ({
+        ...log,
+        successful: log.successful === 1 || log.successful === true,
+      }))
+
+      setLogs(formattedData)
+      calculateStats(formattedData)
       setLoading(false)
     } catch (err) {
       setError("Error fetching logs. Please check your server connection.")
@@ -65,7 +74,7 @@ export default function Dashboard() {
     const totalTransfers = logData.length
 
     // Calculate total file size
-    const totalSize = logData.reduce((sum, log) => sum + log.fileSize, 0)
+    const totalSize = logData.reduce((sum, log) => sum + (log.fileSize || 0), 0)
 
     // Calculate success rate
     const successfulTransfers = logData.filter((log) => log.successful).length
@@ -101,7 +110,9 @@ export default function Dashboard() {
   const prepareFileTypeChartData = () => {
     const fileTypeCounts = {}
     logs.forEach((log) => {
-      fileTypeCounts[log.fileType] = (fileTypeCounts[log.fileType] || 0) + 1
+      if (log.fileType) {
+        fileTypeCounts[log.fileType] = (fileTypeCounts[log.fileType] || 0) + 1
+      }
     })
 
     return {
@@ -200,6 +211,7 @@ export default function Dashboard() {
 
   // Format file size
   const formatFileSize = (bytes) => {
+    if (!bytes || bytes === 0) return "0 B"
     if (bytes < 1024) return bytes + " B"
     if (bytes < 1048576) return (bytes / 1024).toFixed(2) + " KB"
     if (bytes < 1073741824) return (bytes / 1048576).toFixed(2) + " MB"
@@ -209,6 +221,7 @@ export default function Dashboard() {
 
   // Format date
   const formatDate = (dateString) => {
+    if (!dateString) return ""
     const date = new Date(dateString)
     return date.toLocaleString()
   }
@@ -218,7 +231,7 @@ export default function Dashboard() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading dashboard data...</p>
+          <p className="text-muted-foreground">กำลังโหลดข้อมูลแดชบอร์ด...</p>
         </div>
       </div>
     )
@@ -229,7 +242,7 @@ export default function Dashboard() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center max-w-md p-6 bg-destructive/10 rounded-lg">
           <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-          <h2 className="text-xl font-bold mb-2">Connection Error</h2>
+          <h2 className="text-xl font-bold mb-2">เกิดข้อผิดพลาดในการเชื่อมต่อ</h2>
           <p className="text-muted-foreground mb-4">{error}</p>
           <button
             onClick={() => {
@@ -238,7 +251,7 @@ export default function Dashboard() {
             }}
             className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90"
           >
-            Retry Connection
+            ลองใหม่อีกครั้ง
           </button>
         </div>
       </div>
@@ -249,13 +262,13 @@ export default function Dashboard() {
     <div className="container mx-auto p-4 space-y-6">
       <header className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">QuickDrop Dashboard</h1>
-        <p className="text-muted-foreground">Monitor file transfers and system performance</p>
+        <p className="text-muted-foreground">ติดตามการถ่ายโอนไฟล์และประสิทธิภาพของระบบ</p>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Transfers</CardTitle>
+            <CardTitle className="text-sm font-medium">จำนวนการถ่ายโอนทั้งหมด</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
@@ -267,7 +280,7 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total File Size</CardTitle>
+            <CardTitle className="text-sm font-medium">ขนาดไฟล์ทั้งหมด</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
@@ -279,7 +292,7 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
+            <CardTitle className="text-sm font-medium">อัตราความสำเร็จ</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
@@ -294,13 +307,13 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Most Active Device</CardTitle>
+            <CardTitle className="text-sm font-medium">อุปกรณ์ที่ใช้งานมากที่สุด</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-xl font-bold truncate">{stats.mostActiveDevice}</div>
-                <div className="text-xs text-muted-foreground">{stats.mostActiveCount} transfers</div>
+                <div className="text-xs text-muted-foreground">{stats.mostActiveCount} ครั้ง</div>
               </div>
               <HardDrive className="h-4 w-4 text-muted-foreground" />
             </div>
@@ -310,9 +323,9 @@ export default function Dashboard() {
 
       <Tabs defaultValue="transfers">
         <TabsList className="grid w-full grid-cols-3 mb-4">
-          <TabsTrigger value="transfers">Recent Transfers</TabsTrigger>
-          <TabsTrigger value="charts">Charts & Analytics</TabsTrigger>
-          <TabsTrigger value="performance">Performance</TabsTrigger>
+          <TabsTrigger value="transfers">การถ่ายโอนล่าสุด</TabsTrigger>
+          <TabsTrigger value="charts">กราฟและการวิเคราะห์</TabsTrigger>
+          <TabsTrigger value="performance">ประสิทธิภาพ</TabsTrigger>
         </TabsList>
 
         <TabsContent value="transfers" className="space-y-4">
@@ -320,12 +333,12 @@ export default function Dashboard() {
             <CardHeader>
               <CardTitle className="flex items-center">
                 <Clock className="mr-2 h-5 w-5" />
-                Recent Transfers
+                การถ่ายโอนล่าสุด
               </CardTitle>
               <CardDescription>
-                Showing the latest {logs.length} file transfers
+                แสดงการถ่ายโอนไฟล์ล่าสุด {logs.length} รายการ
                 <Badge variant="outline" className="ml-2">
-                  Auto-refresh
+                  รีเฟรชอัตโนมัติ
                 </Badge>
               </CardDescription>
             </CardHeader>
@@ -334,12 +347,12 @@ export default function Dashboard() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Time</TableHead>
-                      <TableHead>Sender</TableHead>
-                      <TableHead>Receiver</TableHead>
-                      <TableHead>File</TableHead>
-                      <TableHead>Size</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead>เวลา</TableHead>
+                      <TableHead>ผ��้ส่ง</TableHead>
+                      <TableHead>ผู้รับ</TableHead>
+                      <TableHead>ไฟล์</TableHead>
+                      <TableHead>ขนาด</TableHead>
+                      <TableHead>สถานะ</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -362,11 +375,11 @@ export default function Dashboard() {
                         <TableCell>
                           {log.successful ? (
                             <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                              <CheckCircle className="mr-1 h-3 w-3" /> Success
+                              <CheckCircle className="mr-1 h-3 w-3" /> สำเร็จ
                             </Badge>
                           ) : (
                             <Badge variant="destructive">
-                              <XCircle className="mr-1 h-3 w-3" /> Failed
+                              <XCircle className="mr-1 h-3 w-3" /> ล้มเหลว
                             </Badge>
                           )}
                         </TableCell>
@@ -385,7 +398,7 @@ export default function Dashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center">
                   <FileType className="mr-2 h-5 w-5" />
-                  Transfers By File Type
+                  การถ่ายโอนตามประเภทไฟล์
                 </CardTitle>
               </CardHeader>
               <CardContent className="h-[300px]">
@@ -395,7 +408,7 @@ export default function Dashboard() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Transfers Over Time</CardTitle>
+                <CardTitle>การถ่ายโอนตามช่วงเวลา</CardTitle>
               </CardHeader>
               <CardContent className="h-[300px]">
                 <Line
@@ -412,7 +425,7 @@ export default function Dashboard() {
 
             <Card className="md:col-span-2">
               <CardHeader>
-                <CardTitle>Success vs. Failed Transfers</CardTitle>
+                <CardTitle>การถ่ายโอนที่สำเร็จ vs ล้มเหลว</CardTitle>
               </CardHeader>
               <CardContent className="h-[300px]">
                 <Bar
@@ -433,14 +446,14 @@ export default function Dashboard() {
         <TabsContent value="performance" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Transfer Performance</CardTitle>
-              <CardDescription>Analysis of transfer speeds and performance metrics</CardDescription>
+              <CardTitle>ประสิทธิภาพการถ่ายโอน</CardTitle>
+              <CardDescription>การวิเคราะห์ความเร็วในการถ่ายโอนและเมตริกประสิทธิภาพ</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-8">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium">Average File Size</div>
+                    <div className="text-sm font-medium">ขนาดไฟล์เฉลี่ย</div>
                     <div className="text-sm font-medium">
                       {formatFileSize(stats.totalSize / (stats.totalTransfers || 1))}
                     </div>
@@ -452,9 +465,9 @@ export default function Dashboard() {
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium">Largest Transfer</div>
+                    <div className="text-sm font-medium">การถ่ายโอนที่ใหญ่ที่สุด</div>
                     <div className="text-sm font-medium">
-                      {formatFileSize(Math.max(...logs.map((log) => log.fileSize), 0))}
+                      {formatFileSize(Math.max(...logs.map((log) => log.fileSize || 0), 0))}
                     </div>
                   </div>
                   <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
@@ -464,7 +477,7 @@ export default function Dashboard() {
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium">Transfers Today</div>
+                    <div className="text-sm font-medium">การถ่ายโอนวันนี้</div>
                     <div className="text-sm font-medium">
                       {
                         logs.filter((log) => {

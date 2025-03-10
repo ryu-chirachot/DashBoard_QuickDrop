@@ -6,12 +6,12 @@ const inter = Inter({ subsets: ["latin"] })
 
 export const metadata = {
   title: "QuickDrop Dashboard",
-  description: "Monitor file transfers and system performance",
+  description: "ติดตามการถ่ายโอนไฟล์และประสิทธิภาพของระบบ",
 }
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="th" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           {children}

@@ -24,13 +24,16 @@ app.prepare().then(() => {
   server.use(bodyParser.json())
 
   // Database connection pool
-  const db = mysql.createPool({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_DATABASE,
-    port: process.env.DB_PORT,
-  })
+const db = mysql.createPool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_DATABASE,
+  port: process.env.DB_PORT,
+  ssl: {
+    rejectUnauthorized: true
+  } // เพิ่ม SSL สำหรับการเชื่อมต่อที่ปลอดภัย
+});
 
   // Create logs table if it doesn't exist
   ;(async () => {
