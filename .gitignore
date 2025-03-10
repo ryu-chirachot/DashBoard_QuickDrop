@@ -2,3 +2,5 @@
 .env.local
 wrangler.toml
 schema.sql
+node_modules/
+.next/
